@@ -17,8 +17,13 @@ wiki:
 http://wiki.openluat.com/
 
 视频教程：
+
 iRTU快速接入教程：https://www.bilibili.com/video/av41012302
+
 iRTU远程浇花视频：https://www.bilibili.com/video/av47478475
+
 Luat相关工具教程：https://www.bilibili.com/video/av50453083
+
 Luat硬件设计参考：https://www.bilibili.com/video/av45341487
+
 luat开发视频教程：https://www.bilibili.com/video/av50827315
