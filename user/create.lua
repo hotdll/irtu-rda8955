@@ -753,7 +753,7 @@ function txiot(cid, pios, reg, convert, passon, upprot, dwprot, keepAlive, timeo
         end
     end
     if not io.exists("/qqiot.dat") then
-        log.warn("阿里云设备注册失败或不存在设备信息!")
+        log.warn("腾讯云设备注册失败或不存在设备信息!")
         return
     end
     if type(sub) ~= "string" or sub == "" then
