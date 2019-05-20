@@ -4,7 +4,7 @@
 -- @license MIT
 -- @copyright openLuat
 -- @release 2018.12.27
-require "cc"
+-- require "cc"
 require "pm"
 require "iic"
 require "sms"
@@ -23,10 +23,12 @@ require "create"
 require "tracker"
 module(..., package.seeall)
 
+-- 判断模块类型
+local is4gLod = rtos.get_version():upper():find("ASR1802")
 -- 用户的配置参数
 local CONFIG = "/CONFIG.cnf"
 -- 串口缓冲区最大值
-local SENDSIZE = 1460
+local SENDSIZE = is4gLod and 8192 or 1460
 -- 串口写空闲
 local writeIdle = {true, true}
 -- 串口读缓冲区
@@ -74,6 +76,13 @@ local dtu = {
     task = {}, -- 用户自定义任务列表
 }
 
+-- 4G lib暂时没有cc库
+if not is4gLod then
+    require "cc"
+    pmd.ldoset(7, pmd.LDO_VLCD)
+    pmd.ldoset(7, pmd.LDO_VMMC)
+end
+
 -- 获取参数版本
 io.getParamVer = function()
     return dtu.param_ver
@@ -107,10 +116,41 @@ if io.exists(CONFIG) then
     end
 end
 ---------------------------------------------------------- 用户控制 GPIO 配置 ----------------------------------------------------------
-pmd.ldoset(7, pmd.LDO_VLCD)
-pmd.ldoset(7, pmd.LDO_VMMC)
 -- 用户可用IO列表
-local pios = {
+local pios = is4gLod and {
+    pio23 = pins.setup(23, 0, pio.PULLUP), -- 默认U1的485-DIR
+    pio26 = pins.setup(26, nil, pio.PULLDOWN),
+    pio27 = pins.setup(27, nil, pio.PULLDOWN),
+    pio28 = pins.setup(28, nil, pio.PULLDOWN),
+    pio33 = pins.setup(33, nil, pio.PULLDOWN),
+    pio34 = pins.setup(34, nil, pio.PULLDOWN),
+    pio35 = pins.setup(35, nil, pio.PULLDOWN),
+    pio36 = pins.setup(36, nil, pio.PULLDOWN),
+    -- pio53 = pins.setup(53, nil, pio.PULLDOWN),
+    -- pio54 = pins.setup(54, nil, pio.PULLDOWN),
+    pio55 = pins.setup(55, nil, pio.PULLDOWN),
+    pio56 = pins.setup(56, nil, pio.PULLDOWN),
+    pio59 = pins.setup(59, 0, pio.PULLUP), -- 默认U2的485-DIR
+    pio62 = pins.setup(62, nil, pio.PULLDOWN),
+    pio63 = pins.setup(63, nil, pio.PULLDOWN),
+    pio64 = pins.setup(64, nil, pio.PULLDOWN), -- NETLED
+    pio65 = pins.setup(65, nil, pio.PULLDOWN), -- NETREADY
+    pio67 = pins.setup(67, nil, pio.PULLDOWN), -- NETLED
+    pio68 = pins.setup(68, nil, pio.PULLDOWN), -- RSTCNF
+    pio69 = pins.setup(69, nil, pio.PULLDOWN),
+    pio70 = pins.setup(70, nil, pio.PULLDOWN),
+    pio71 = pins.setup(71, nil, pio.PULLDOWN),
+    pio72 = pins.setup(72, nil, pio.PULLDOWN),
+    pio73 = pins.setup(73, nil, pio.PULLDOWN),
+    pio74 = pins.setup(74, nil, pio.PULLDOWN),
+    pio75 = pins.setup(75, nil, pio.PULLDOWN),
+    pio76 = pins.setup(76, nil, pio.PULLDOWN),
+    pio77 = pins.setup(77, nil, pio.PULLDOWN),
+    pio78 = pins.setup(78, nil, pio.PULLDOWN),
+    pio79 = pins.setup(79, nil, pio.PULLDOWN),
+    pio80 = pins.setup(80, nil, pio.PULLDOWN),
+    pio81 = pins.setup(81, nil, pio.PULLDOWN),
+} or {
     pio2 = pins.setup(pio.P0_2, nil, pio.PULLDOWN), -- 默认485方向控制
     pio3 = pins.setup(pio.P0_3, nil, pio.PULLDOWN), -- 默认netready信号
     pio6 = pins.setup(pio.P0_6, nil, pio.PULLDOWN),
@@ -134,14 +174,15 @@ local pios = {
 
 -- 网络READY信号
 if not dtu.pins or not dtu.pins[2] or not pios[dtu.pins[2]] then -- 这么定义是为了和之前的代码兼容
-    netready = pins.setup(pio.P0_3, 0)
+    netready = pins.setup(is4gLod and 65 or 3, 0)
 else
     netready = pins.setup(tonumber(dtu.pins[2]:sub(4, -1)), 0)
     pios[dtu.pins[2]] = nil
 end
+
 -- 重置DTU
 if not dtu.pins or not dtu.pins[3] or not pios[dtu.pins[3]] then -- 这么定义是为了和之前的代码兼容
-    pins.setup(pio.P0_29, function(msg)
+    pins.setup(is4gLod and 68 or 29, function(msg)
         if msg ~= cpu.INT_GPIO_POSEDGE then
             sys.restart("软件恢复出厂默认值:" .. (os.remove(CONFIG) and "OK" or "ERROR!"))
         end
@@ -179,7 +220,7 @@ local function netled(led)
     end
 end
 if not dtu.pins or not dtu.pins[1] or not pios[dtu.pins[1]] then -- 这么定义是为了和之前的代码兼容
-    sys.taskInit(netled, pio.P1_1)
+    sys.taskInit(netled, is4gLod and 64 or 33)
 else
     sys.taskInit(netled, tonumber(dtu.pins[1]:sub(4, -1)))
     pios[dtu.pins[1]] = nil
@@ -214,10 +255,6 @@ end, 1000)
 -- 串口写数据处理
 function write(uid, str)
     if not str or str == "" then return end
-    if default["dir" .. uid] and writeIdle[uid] then
-        default["dir" .. uid](1)
-        rtos.sleep(2)
-    end
     if str ~= true then
         for i = 1, #str, SENDSIZE do
             table.insert(writeBuff[uid], str:sub(i, i + SENDSIZE - 1))
@@ -238,7 +275,6 @@ local function writeDone(uid)
         writeIdle[uid] = true
         sys.publish("UART_" .. uid .. "_WRITE_DONE")
         log.warn("UART_" .. uid .. "write done!")
-        if default["dir" .. uid] then default["dir" .. uid](0) end
     else
         writeIdle[uid] = false
         uart.write(uid, table.remove(writeBuff[uid], 1))
@@ -518,7 +554,7 @@ function uart_INIT(i, uconf)
     end)
     -- 485方向控制
     if not dtu.uconf[i][6] or dtu.uconf[i][6] == "" then -- 这么定义是为了和之前的代码兼容
-        default["dir" .. i] = i == 1 and pio.P0_2 or pio.P0_6
+        default["dir" .. i] = i == 1 and (is4gLod and 23 or 2) or (is4gLod and 59 or 6)
     else
         if pios[dtu.uconf[i][6]] then
             default["dir" .. i] = tonumber(dtu.uconf[i][6]:sub(4, -1))
@@ -528,7 +564,8 @@ function uart_INIT(i, uconf)
         end
     end
     if default["dir" .. i] then
-        default["dir" .. i] = pins.setup(default["dir" .. i], 0)
+        pins.setup(default["dir" .. i], 0)
+        uart.set_rs485_oe(i, default["dir" .. i])
     end
 end
 
@@ -557,13 +594,22 @@ sys.taskInit(function()
         
         -- 检查是否有更新程序
         if tonumber(dtu.fota) == 1 then
-            url = "iot.openluat.com/api/site/firmware_upgrade?project_key=" .. _G.PRODUCT_KEY
-                .. "&imei=" .. misc.getImei() .. "&device_key=" .. misc.getSn()
-                .. "&firmware_name=" .. _G.PROJECT .. "_" .. rtos.get_version() .. "&version=" .. _G.VERSION
-            code, head, body = httpv2.request("GET", url, 30000)
-            if tonumber(code) == 200 and body and #body > 1024 then
-                io.writeFile("/luazip/update.bin", body)
-                rst = true
+            if is4gLod and rtos.fota_start() == 0 then
+                url = "iot.openluat.com/api/site/firmware_upgrade?project_key=" .. _G.PRODUCT_KEY
+                    .. "&imei=" .. misc.getImei() .. "&device_key=" .. misc.getSn()
+                    .. "&firmware_name=" .. _G.PROJECT .. "_" .. rtos.get_version() .. "&version=" .. _G.VERSION
+                code, head, body = httpv2.request("GET", url, 30000, nil, nil, nil, nil, nil, nil, rtos.fota_process)
+                if tonumber(code) == 200 or tonumber(code) == 206 then rst = true end
+                rtos.fota_end()
+            elseif not is4gLod then
+                url = "iot.openluat.com/api/site/firmware_upgrade?project_key=" .. _G.PRODUCT_KEY
+                    .. "&imei=" .. misc.getImei() .. "&device_key=" .. misc.getSn()
+                    .. "&firmware_name=" .. _G.PROJECT .. "_" .. rtos.get_version() .. "&version=" .. _G.VERSION
+                code, head, body = httpv2.request("GET", url, 30000)
+                if tonumber(code) == 200 and body and #body > 1024 then
+                    io.writeFile("/luazip/update.bin", body)
+                    rst = true
+                end
             end
         end
         if rst then sys.restart("DTU Parameters or firmware are updated!") end
