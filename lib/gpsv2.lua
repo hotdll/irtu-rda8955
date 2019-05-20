@@ -121,7 +121,8 @@ local function parseNmea(s)
         end
     elseif s:match("VTG") then
         kmHour = s:match("VTG,%d*%.*%d*,%w*,%d*%.*%d*,%w*,%d*%.*%d*,%w*,(%d*%.*%d*)")
-        if fixFlag then sys.publish("GPS_MSG_REPORT", 1) else sys.publish("GPS_MSG_NOREPORT", 0) end
+        -- if fixFlag then sys.publish("GPS_MSG_REPORT", 1) else sys.publish("GPS_MSG_NOREPORT", 0) end
+        sys.publish("GPS_MSG_REPORT", fixFlag and 1 or 0)
     end
 end
 
@@ -445,11 +446,15 @@ function getDeglbs()
 end
 
 --- 获取度格式的经纬度信息dd.dddddd
--- @return string,string,返回度格式的字符串经度,维度,符号(正东负西,正北负南)
+-- @return string,string,固件为非浮点时返回度格式的字符串经度,维度,符号(正东负西,正北负南)
+-- @return float,float,固件为浮点的时候，返回浮点类型
 -- @usage gpsv2.getLocation()
 function getDegLocation()
     local lng, lat = getIntLocation()
-    return string.format("%d.%07d", lng / 10 ^ 7, lng % 10 ^ 7), string.format("%d.%07d", lat / 10 ^ 7, lat % 10 ^ 7)
+    lng, lat = string.format("%d.%07d", lng / 10 ^ 7, lng % 10 ^ 7), string.format("%d.%07d", lat / 10 ^ 7, lat % 10 ^ 7)
+    lng = float and tonumber(lng) or lng
+    lat = float and tonumber(lat) or lat
+    return lng, lat
 end
 
 --- 获取度分格式的经纬度信息ddmm.mmmm
@@ -477,7 +482,7 @@ end
 
 --- 获取时速(KM/H)的整数型和浮点型(字符串)
 function getKmHour()
-    return tonumber(kmHour and kmHour:match("(%d+)")) or 0, kmHour or "0"
+    return tonumber(kmHour and kmHour:match("(%d+)")) or 0, (float and tonumber(kmHour) or kmHour) or "0"
 end
 
 --- 获取方向角

@@ -218,7 +218,8 @@ function mt:connect(address, port)
         log.info("socket:connect: call exist, cannot connect")
         return false
     end
-    
+    self.address = address
+    self.port = port
     if self.ssl then
         local tConfigCert, i = {}
         if self.cert then
@@ -236,8 +237,7 @@ function mt:connect(address, port)
             end
         end
         
-        sslInit()
-        self.address = address
+        sslInit()        
         req(string.format("AT+SSLCREATE=%d,\"%s\",%d", self.id, address .. ":" .. port, (self.cert and self.cert.caCert) and 0 or 1))
         self.created = true
         for i = 1, #tConfigCert do
@@ -284,6 +284,7 @@ function mt:connect(address, port)
     
     if r == false then
         if self.ssl then self:sslDestroy() end
+        sys.publish("LIB_SOCKET_CONNECT_FAIL_IND",self.ssl,self.protocol,address,port)
         return false
     end
     self.connected = true
@@ -314,13 +315,14 @@ function mt:asyncSelect(keepAlive, pingreq)
             self.wait = self.ssl and "+SSLSEND" or "+CIPSEND"
             if not coroutine.yield() then
                 if self.ssl then self:sslDestroy() end
+                sys.publish("LIB_SOCKET_SEND_FAIL_IND",self.ssl,self.protocol,self.address,self.port)
                 return false
             end
         end
     end
     self.wait = "SOCKET_WAIT"
     sys.publish("SOCKET_SEND", self.id)
-    if not keepAlive or keepAlive == 0 then
+    if keepAlive and keepAlive ~= 0 then
         if type(pingreq) == "function" then
             sys.timerStart(pingreq, keepAlive * 1000)
         else
@@ -381,6 +383,7 @@ function mt:send(data)
         self.wait = self.ssl and "+SSLSEND" or "+CIPSEND"
         if not coroutine.yield() then
             if self.ssl then self:sslDestroy() end
+            sys.publish("LIB_SOCKET_SEND_FAIL_IND",self.ssl,self.protocol,self.address,self.port)
             return false
         end
     end
@@ -467,7 +470,7 @@ end
 --- 销毁一个socket
 -- @return nil
 -- @usage  c = socket.tcp(); c:connect(); c:send("123"); c:close()
-function mt:close()
+function mt:close(slow)
     assert(self.co == coroutine.running(), "socket:close: coroutine mismatch")
     if self.iSubscribe then
         sys.unsubscribe(self.iSubscribe, self.subMessage)
@@ -476,7 +479,7 @@ function mt:close()
     if self.connected or self.created then
         self.connected = false
         self.created = false
-        req(self.ssl and ("AT+SSLDESTROY=" .. self.id) or ("AT+CIPCLOSE=" .. self.id .. ",0"))
+        req(self.ssl and ("AT+SSLDESTROY=" .. self.id) or ("AT+CIPCLOSE=" .. self.id .. (slow and ",0" or "")))
         self.wait = self.ssl and "+SSLDESTROY" or "+CIPCLOSE"
         coroutine.yield()
         socketStatusNtfy()
