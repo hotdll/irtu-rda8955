@@ -787,7 +787,7 @@ function connect(pios, conf, reg, convert, passon, upprot, dwprot)
     if not socket.isReady() and not sys.waitUntil("IP_READY_IND", 120000) then sys.restart("网络初始化失败!") end
     sys.waitUntil("DTU_PARAM_READY", 120000)
     -- 自动创建透传任务并填入参数
-    for k, v in pairs(conf) do
+    for k, v in pairs(conf or {}) do
         -- log.info("Task parameter information:", k, pios, reg, convert, passon, upprot, dwprot, unpack(v))
         if v[1] and (v[1]:upper() == "TCP" or v[1]:upper() == "UDP") then
             log.warn("----------------------- TCP/UDP is start! --------------------------------------")
