@@ -2,8 +2,8 @@
 --PROJECT：ascii string类型，可以随便定义，只要不使用,就行
 --VERSION：ascii string类型，如果使用Luat物联云平台固件升级的功能，必须按照"X.X.X"定义，X表示1位数字；否则可随便定义
 local is4gLod = rtos.get_version():upper():find("ASR1802")
+PROJECT = "DTU-AIR202-MODUL"
 VERSION = "1.8.0"
-PROJECT = is4gLod and "DTU-AIR720-MODUL" or "DTU-AIR202-MODUL"
 PRODUCT_KEY = is4gLod and "YoR8ob2ELJOczNrVOZZTtAcmLAf6eyYw" or "E51hZg0i9nMUNNirxDKQwvuZdMFSqTBJ"
 
 --加载日志功能模块，并且设置日志输出等级
